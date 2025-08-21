@@ -1,0 +1,11 @@
+{
+  "name": "Modbus Fast Poller",
+  "description": "Bulk-reads Modbus registers and exposes them as binary_sensors with a fast poller.",
+  "content_in_root": false,
+  "domain": "modbus_fast",
+  "homeassistant": "2025.8.0",
+  "render_readme": true,
+  "zip_release": false,
+  "changelog": "",
+  "category": "integration"
+}
