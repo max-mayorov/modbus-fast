@@ -17,7 +17,7 @@ async def async_setup_platform(hass: HomeAssistant, config: dict, add_entities, 
     name_prefix = getattr(hub, "name", "Modbus Fast")
     for i in range(hub.count):
         addr = hub.start_address + i
-        name = f"{name_prefix} R{addr}"
+        name = f"{name_prefix} I{addr}"
         entities.append(ModbusFastBinarySensor(hub, i, name))
     add_entities(entities)
 
