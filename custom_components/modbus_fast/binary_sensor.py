@@ -39,8 +39,11 @@ class ModbusFastBinarySensor(BinarySensorEntity):
         self._hub = hub
         self._index = index
         self._attr_name = name
+        # Compute unique id address respecting one_based_names
+        _base_addr = hub.start_address + index
+        _id_addr = _base_addr + 1 if getattr(hub, "one_based_names", False) else _base_addr
         # Include port in unique_id to avoid collisions across ports
-        self._attr_unique_id = f"{DOMAIN}_{hub.host}_{hub.port}_{hub.unit_id}_{hub.start_address + index}"
+        self._attr_unique_id = f"{DOMAIN}_{hub.host}_{hub.port}_{hub.unit_id}_{_id_addr}"
         self._last_state: Optional[bool] = None
 
     async def async_added_to_hass(self) -> None:
