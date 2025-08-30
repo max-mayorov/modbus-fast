@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import inspect
 from typing import List, Optional
 
 import voluptuous as vol
@@ -76,13 +77,24 @@ class ModbusFastHub:
         self.values: List[Optional[bool]] = [None] * self.count
         self.connected: bool = False
         self._client = None
+        # Cache which kwarg the installed pymodbus expects for unit id ('unit' vs 'slave')
+        self._unit_kw_name: Optional[str] = None
 
     async def async_setup(self) -> None:
         from pymodbus.client import AsyncModbusTcpClient  # type: ignore
 
-        _LOGGER.info("Setting up Modbus Fast Poller to %s:%s (unit %s), type=%s, addr=%s, count=%s, period=%sms",
-                     self.host, self.port, self.unit_id, self.register_type, self.start_address, self.count, self.sample_ms)
-        self._client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=0.05)
+        _LOGGER.info(
+            "Setting up Modbus Fast Poller to %s:%s (unit %s), type=%s, addr=%s, count=%s, period=%sms",
+            self.host,
+            self.port,
+            self.unit_id,
+            self.register_type,
+            self.start_address,
+            self.count,
+            self.sample_ms,
+        )
+        # Be a bit more tolerant on initial timeout; 50ms is often too tight
+        self._client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=1.0)
         ok = await self._client.connect()
         self.connected = bool(ok)
         if not self.connected:
@@ -113,7 +125,7 @@ class ModbusFastHub:
     async def _ensure_connected(self):
         if self._client is None:
             return
-        if not self._client.connected:
+        if not getattr(self._client, "connected", False):
             try:
                 ok = await self._client.connect()
                 self.connected = bool(ok)
@@ -121,8 +133,46 @@ class ModbusFastHub:
                 _LOGGER.debug("Reconnect failed: %s", exc)
                 self.connected = False
 
+    def _get_unit_kwargs(self, method) -> dict:
+        """Determine whether this pymodbus expects 'unit' or 'slave' kwarg and cache it."""
+        if self._unit_kw_name is None:
+            try:
+                params = inspect.signature(method).parameters
+                if "unit" in params:
+                    self._unit_kw_name = "unit"
+                elif "slave" in params:
+                    self._unit_kw_name = "slave"
+                else:
+                    # Default to 'unit' when unknown
+                    self._unit_kw_name = "unit"
+            except Exception:  # noqa: BLE001
+                self._unit_kw_name = "unit"
+            _LOGGER.debug("Using '%s' kwarg for unit id", self._unit_kw_name)
+        return {self._unit_kw_name: self.unit_id}
+
+    async def _read_call(self, method_name: str):
+        """Call a pymodbus read method with compatibility for unit/slave kwarg."""
+        if self._client is None:
+            return None
+        method = getattr(self._client, method_name, None)
+        if method is None:
+            raise AttributeError(f"Client missing method {method_name}")
+
+        try:
+            return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
+        except TypeError as te:
+            # Retry once with the alternate kwarg name if first try failed due to bad kw
+            msg = str(te)
+            if "unit" in msg and "unexpected" in msg or "got an unexpected keyword" in msg:
+                self._unit_kw_name = "slave"
+                return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
+            if "slave" in msg and "unexpected" in msg or "got an unexpected keyword" in msg:
+                self._unit_kw_name = "unit"
+                return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
+            raise
+
     async def _poll_once(self) -> Optional[List[bool]]:
-        """Fetch a batch of 32 (or configured) values as booleans."""
+        """Fetch a batch of values as booleans."""
         if self._client is None:
             return None
         await self._ensure_connected()
@@ -130,23 +180,24 @@ class ModbusFastHub:
             return None
 
         try:
-            unit_kw = {"unit": self.unit_id}  # pymodbus>=3 uses 'unit'
             if self.register_type == "coil":
-                rr = await self._client.read_coils(self.start_address, self.count, **unit_kw)
+                rr = await self._read_call("read_coils")
                 if rr.isError():
                     raise Exception(str(rr))  # noqa: TRY002
-                bits = list(rr.bits)[: self.count]
+                bits = list(getattr(rr, "bits", []) )[: self.count]
+                self.connected = True
                 return [bool(b) for b in bits]
             elif self.register_type == "input":
-                rr = await self._client.read_input_registers(self.start_address, self.count, **unit_kw)
+                rr = await self._read_call("read_input_registers")
                 if rr.isError():
                     raise Exception(str(rr))  # noqa: TRY002
-                regs = rr.registers
+                regs = getattr(rr, "registers", [])
             else:  # holding
-                rr = await self._client.read_holding_registers(self.start_address, self.count, **unit_kw)
+                rr = await self._read_call("read_holding_registers")
                 if rr.isError():
                     raise Exception(str(rr))  # noqa: TRY002
-                regs = rr.registers
+                regs = getattr(rr, "registers", [])
+            self.connected = True
             return [bool(v) for v in regs]
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug("Poll error: %s", exc)

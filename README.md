@@ -62,3 +62,4 @@ After HACS installation, configure the integration using the same YAML shown abo
 ## Uninstall
 
 - Remove the YAML block, restart HA, and delete the folder from `custom_components`.
+
