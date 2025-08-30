@@ -4,7 +4,7 @@ import logging
 from typing import Any, Optional
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorEntityDescription
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN, SIGNAL_UPDATE
@@ -29,7 +29,8 @@ class ModbusFastBinarySensor(BinarySensorEntity):
         self._hub = hub
         self._index = index
         self._attr_name = name
-        self._attr_unique_id = f"{DOMAIN}_{hub.host}_{hub.unit_id}_{hub.start_address + index}"
+        # Include port in unique_id to avoid collisions across ports
+        self._attr_unique_id = f"{DOMAIN}_{hub.host}_{hub.port}_{hub.unit_id}_{hub.start_address + index}"
         self._last_state: Optional[bool] = None
 
     async def async_added_to_hass(self) -> None:
@@ -57,6 +58,7 @@ class ModbusFastBinarySensor(BinarySensorEntity):
             "model": f"{self._hub.register_type}@{self._hub.start_address}+{self._hub.count}",
         }
 
+    @callback
     def _handle_hub_update(self, changed_idx: Optional[list[int]]) -> None:
         # Only write state if ours changed (or if hub signaled a full update)
         if changed_idx is None or self._index in changed_idx:

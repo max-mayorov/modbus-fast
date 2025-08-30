@@ -25,6 +25,7 @@ from .const import (
     CONF_SAMPLE_MS,
     CONF_NAME,
     CONF_ONLY_ON_CHANGE,
+    CONF_TIMEOUT,
     DEFAULT_PORT,
     DEFAULT_UNIT_ID,
     DEFAULT_REGISTER_TYPE,
@@ -33,6 +34,7 @@ from .const import (
     DEFAULT_SAMPLE_MS,
     DEFAULT_NAME,
     DEFAULT_ONLY_ON_CHANGE,
+    DEFAULT_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,6 +53,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_SAMPLE_MS, default=DEFAULT_SAMPLE_MS): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
                 vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
                 vol.Optional(CONF_ONLY_ON_CHANGE, default=DEFAULT_ONLY_ON_CHANGE): cv.boolean,
+                vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=30.0)),
             }
         )
     },
@@ -71,6 +74,7 @@ class ModbusFastHub:
         self.sample_ms: int = max(1, conf[CONF_SAMPLE_MS])
         self.name: str = conf[CONF_NAME]
         self.only_on_change: bool = conf[CONF_ONLY_ON_CHANGE]
+        self.timeout: float = float(conf.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
 
         self._task: Optional[asyncio.Task] = None
         self._stop_evt = asyncio.Event()
@@ -84,7 +88,7 @@ class ModbusFastHub:
         from pymodbus.client import AsyncModbusTcpClient  # type: ignore
 
         _LOGGER.info(
-            "Setting up Modbus Fast Poller to %s:%s (unit %s), type=%s, addr=%s, count=%s, period=%sms",
+            "Setting up Modbus Fast Poller to %s:%s (unit %s), type=%s, addr=%s, count=%s, period=%sms, timeout=%.2fs",
             self.host,
             self.port,
             self.unit_id,
@@ -92,9 +96,10 @@ class ModbusFastHub:
             self.start_address,
             self.count,
             self.sample_ms,
+            self.timeout,
         )
-        # Be a bit more tolerant on initial timeout; 50ms is often too tight
-        self._client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=1.0)
+        # Use configured timeout
+        self._client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=self.timeout)
         ok = await self._client.connect()
         self.connected = bool(ok)
         if not self.connected:
