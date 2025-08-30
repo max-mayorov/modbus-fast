@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import inspect
 from typing import List, Optional
 
 import voluptuous as vol
@@ -47,7 +46,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Required(CONF_HOST): cv.string,
                 vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
                 vol.Optional(CONF_UNIT_ID, default=DEFAULT_UNIT_ID): vol.Coerce(int),
-                vol.Optional(CONF_REGISTER_TYPE, default=DEFAULT_REGISTER_TYPE): vol.In(["holding", "input", "coil"]),
+                vol.Optional(CONF_REGISTER_TYPE, default=DEFAULT_REGISTER_TYPE): vol.In(["holding", "input", "coil", "discrete"]),
                 vol.Optional(CONF_START_ADDRESS, default=DEFAULT_START_ADDRESS): vol.Coerce(int),
                 vol.Optional(CONF_COUNT, default=DEFAULT_COUNT): vol.All(vol.Coerce(int), vol.Range(min=1, max=128)),
                 vol.Optional(CONF_SAMPLE_MS, default=DEFAULT_SAMPLE_MS): vol.All(vol.Coerce(int), vol.Range(min=1, max=10000)),
@@ -81,8 +80,8 @@ class ModbusFastHub:
         self.values: List[Optional[bool]] = [None] * self.count
         self.connected: bool = False
         self._client = None
-        # Cache which kwarg the installed pymodbus expects for unit id ('unit' vs 'slave')
-        self._unit_kw_name: Optional[str] = None
+        # Always use 'slave' kwarg for unit id
+        self._unit_kw_name: str = "slave"
 
     async def async_setup(self) -> None:
         from pymodbus.client import AsyncModbusTcpClient  # type: ignore
@@ -139,24 +138,11 @@ class ModbusFastHub:
                 self.connected = False
 
     def _get_unit_kwargs(self, method) -> dict:
-        """Determine whether this pymodbus expects 'unit' or 'slave' kwarg and cache it."""
-        if self._unit_kw_name is None:
-            try:
-                params = inspect.signature(method).parameters
-                if "unit" in params:
-                    self._unit_kw_name = "unit"
-                elif "slave" in params:
-                    self._unit_kw_name = "slave"
-                else:
-                    # Default to 'unit' when unknown
-                    self._unit_kw_name = "unit"
-            except Exception:  # noqa: BLE001
-                self._unit_kw_name = "unit"
-            _LOGGER.debug("Using '%s' kwarg for unit id", self._unit_kw_name)
-        return {self._unit_kw_name: self.unit_id}
+        """Return kwargs for unit id using 'slave'."""
+        return {"slave": self.unit_id}
 
     async def _read_call(self, method_name: str):
-        """Call a pymodbus read method with compatibility for unit/slave kwarg."""
+        """Call a pymodbus read method using 'slave' kwarg for unit id."""
         if self._client is None:
             return None
         method = getattr(self._client, method_name, None)
@@ -166,14 +152,7 @@ class ModbusFastHub:
         try:
             return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
         except TypeError as te:
-            # Retry once with the alternate kwarg name if first try failed due to bad kw
-            msg = str(te)
-            if ("unit" in msg and "unexpected" in msg) or ("got an unexpected keyword" in msg):
-                self._unit_kw_name = "slave"
-                return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
-            if ("slave" in msg and "unexpected" in msg) or ("got an unexpected keyword" in msg):
-                self._unit_kw_name = "unit"
-                return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
+            _LOGGER.error("Modbus call signature error for %s: %s", method_name, te)
             raise
 
     async def _poll_once(self) -> Optional[List[bool]]:
@@ -187,6 +166,13 @@ class ModbusFastHub:
         try:
             if self.register_type == "coil":
                 rr = await self._read_call("read_coils")
+                if rr.isError():
+                    raise Exception(str(rr))  # noqa: TRY002
+                bits = list(getattr(rr, "bits", []) )[: self.count]
+                self.connected = True
+                return [bool(b) for b in bits]
+            elif self.register_type == "discrete":
+                rr = await self._read_call("read_discrete_inputs")
                 if rr.isError():
                     raise Exception(str(rr))  # noqa: TRY002
                 bits = list(getattr(rr, "bits", []) )[: self.count]

@@ -13,7 +13,8 @@ CONF_TIMEOUT = "timeout"
 
 DEFAULT_PORT = 502
 DEFAULT_UNIT_ID = 1
-DEFAULT_REGISTER_TYPE = "holding"  # "holding", "input", or "coil"
+# Supported types: "holding", "input", "coil", "discrete"
+DEFAULT_REGISTER_TYPE = "discrete"
 DEFAULT_START_ADDRESS = 0
 DEFAULT_COUNT = 32
 DEFAULT_SAMPLE_MS = 15
