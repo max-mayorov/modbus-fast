@@ -159,16 +159,16 @@ class ModbusFastHub:
             raise AttributeError(f"Client missing method {method_name}")
 
         try:
-            return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
+            return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
         except TypeError as te:
             # Retry once with the alternate kwarg name if first try failed due to bad kw
             msg = str(te)
-            if "unit" in msg and "unexpected" in msg or "got an unexpected keyword" in msg:
+            if ("unit" in msg and "unexpected" in msg) or ("got an unexpected keyword" in msg):
                 self._unit_kw_name = "slave"
-                return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
-            if "slave" in msg and "unexpected" in msg or "got an unexpected keyword" in msg:
+                return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
+            if ("slave" in msg and "unexpected" in msg) or ("got an unexpected keyword" in msg):
                 self._unit_kw_name = "unit"
-                return await method(self.start_address, self.count, **self._get_unit_kwargs(method))
+                return await method(address=self.start_address, count=self.count, **self._get_unit_kwargs(method))
             raise
 
     async def _poll_once(self) -> Optional[List[bool]]:
