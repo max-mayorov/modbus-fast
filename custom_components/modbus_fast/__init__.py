@@ -25,6 +25,7 @@ from .const import (
     CONF_NAME,
     CONF_ONLY_ON_CHANGE,
     CONF_TIMEOUT,
+    CONF_ONE_BASED_NAMES,
     DEFAULT_PORT,
     DEFAULT_UNIT_ID,
     DEFAULT_REGISTER_TYPE,
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_NAME,
     DEFAULT_ONLY_ON_CHANGE,
     DEFAULT_TIMEOUT,
+    DEFAULT_ONE_BASED_NAMES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
                 vol.Optional(CONF_ONLY_ON_CHANGE, default=DEFAULT_ONLY_ON_CHANGE): cv.boolean,
                 vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=30.0)),
+                vol.Optional(CONF_ONE_BASED_NAMES, default=DEFAULT_ONE_BASED_NAMES): cv.boolean,
             }
         )
     },
@@ -74,6 +77,7 @@ class ModbusFastHub:
         self.name: str = conf[CONF_NAME]
         self.only_on_change: bool = conf[CONF_ONLY_ON_CHANGE]
         self.timeout: float = float(conf.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
+        self.one_based_names: bool = bool(conf.get(CONF_ONE_BASED_NAMES, DEFAULT_ONE_BASED_NAMES))
 
         self._task: Optional[asyncio.Task] = None
         self._stop_evt = asyncio.Event()

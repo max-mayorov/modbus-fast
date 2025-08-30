@@ -10,6 +10,7 @@ CONF_SAMPLE_MS = "sample_period_ms"
 CONF_NAME = "name"
 CONF_ONLY_ON_CHANGE = "only_on_change"
 CONF_TIMEOUT = "timeout"
+CONF_ONE_BASED_NAMES = "one_based_names"
 
 DEFAULT_PORT = 502
 DEFAULT_UNIT_ID = 1
@@ -21,5 +22,6 @@ DEFAULT_SAMPLE_MS = 15
 DEFAULT_NAME = "Modbus Fast"
 DEFAULT_ONLY_ON_CHANGE = True
 DEFAULT_TIMEOUT = 1.0
+DEFAULT_ONE_BASED_NAMES = False
 
 SIGNAL_UPDATE = f"{DOMAIN}_update"

@@ -15,9 +15,19 @@ async def async_setup_platform(hass: HomeAssistant, config: dict, add_entities, 
     hub = hass.data[DOMAIN]
     entities = []
     name_prefix = getattr(hub, "name", "Modbus Fast")
+    # Map register type to letter per request
+    type_letter = {
+        "holding": "H",
+        "input": "R",
+        "coil": "C",
+        "discrete": "I",
+    }.get(getattr(hub, "register_type", "holding"), "H")
+
     for i in range(hub.count):
-        addr = hub.start_address + i
-        name = f"{name_prefix} I{addr}"
+        base_addr = hub.start_address + i
+        # Adjust for one-based naming if enabled
+        display_addr = base_addr + 1 if getattr(hub, "one_based_names", False) else base_addr
+        name = f"{name_prefix} {type_letter}{display_addr}"
         entities.append(ModbusFastBinarySensor(hub, i, name))
     add_entities(entities)
 
