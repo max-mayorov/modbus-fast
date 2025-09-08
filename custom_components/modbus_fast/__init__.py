@@ -84,8 +84,8 @@ class ModbusFastHub:
         self.values: List[Optional[bool]] = [None] * self.count
         self.connected: bool = False
         self._client = None
-        # Always use 'slave' kwarg for unit id
-        self._unit_kw_name: str = "slave"
+        # Always use 'device_id' kwarg for unit id
+        self._unit_kw_name: str = "device_id"
 
     async def async_setup(self) -> None:
         from pymodbus.client import AsyncModbusTcpClient  # type: ignore
@@ -142,11 +142,11 @@ class ModbusFastHub:
                 self.connected = False
 
     def _get_unit_kwargs(self, method) -> dict:
-        """Return kwargs for unit id using 'slave'."""
-        return {"slave": self.unit_id}
+        """Return kwargs for unit id using 'device_id'."""
+        return {"device_id": self.unit_id}
 
     async def _read_call(self, method_name: str):
-        """Call a pymodbus read method using 'slave' kwarg for unit id."""
+        """Call a pymodbus read method using 'device_id' kwarg for unit id."""
         if self._client is None:
             return None
         method = getattr(self._client, method_name, None)
