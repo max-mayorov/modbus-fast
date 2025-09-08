@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--type", choices=["holding", "input", "coils", "discrete"], default="holding", help="What to read")
     p.add_argument("--address", type=positive_int, default=0, help="Start address (default: 0)")
     p.add_argument("--count", type=positive_int, default=1, help="Number of items to read (default: 1)")
-    p.add_argument("--unit", type=int, default=1, help="Modbus unit/slave id (default: 1)")
+    p.add_argument("--unit", type=int, default=1, help="Modbus unit/device id (default: 1)")
     p.add_argument("--timeout", type=float, default=3.0, help="Socket/serial timeout in seconds (default: 3.0)")
 
     return p.parse_args()
@@ -77,13 +77,13 @@ def main() -> int:
 
     try:
         if args.type == "holding":
-            rr = client.read_holding_registers(args.address, count=args.count, unit=args.unit)
+            rr = client.read_holding_registers(args.address, count=args.count, device_id=args.unit)
         elif args.type == "input":
-            rr = client.read_input_registers(args.address, count=args.count, unit=args.unit)
+            rr = client.read_input_registers(args.address, count=args.count, device_id=args.unit)
         elif args.type == "coils":
-            rr = client.read_coils(args.address, count=args.count, unit=args.unit)
+            rr = client.read_coils(args.address, count=args.count, device_id=args.unit)
         else:  # discrete
-            rr = client.read_discrete_inputs(args.address, count=args.count, unit=args.unit)
+            rr = client.read_discrete_inputs(args.address, count=args.count, device_id=args.unit)
 
         if rr.isError():
             print(f"Modbus error: {rr}", file=sys.stderr)
